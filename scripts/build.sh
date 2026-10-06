@@ -3,6 +3,7 @@
 set -euo pipefail
 
 readonly TARGET_RELEASE='5.10.236-android12-9-00003-gfb24cf99ad97-ab14313284'
+readonly TARGET_SCM_SUFFIX='-android12-9-00003-gfb24cf99ad97'
 readonly TARGET_TIMESTAMP='Fri Jan 9 20:21:51 CST 2026'
 readonly MANIFEST_BRANCH='common-android12-5.10-2025-05'
 readonly COMMON_TAG='android12-5.10-2025-05_r6'
@@ -135,11 +136,12 @@ sed -i '/MODULES_ORDER=android\/gki_aarch64_modules/d' \
 sed -i '/KMI_SYMBOL_LIST_STRICT_MODE/d' \
   "$COMMON_ROOT/build.config.gki.aarch64"
 
-# Force exactly the requested release string. This also prevents local patch
-# state from adding a trailing -dirty suffix.
-perl -0pi -e 's/^echo "\$res"$/echo "-android12-9-00003-gfb24cf99ad97-ab14313284"/m' \
+# Force the requested Android/KMI/Git suffix and prevent local patch state from
+# adding -dirty. build/build.sh appends -ab${BUILD_NUMBER}, so it must not be
+# included here or the build number will appear twice.
+perl -0pi -e 's/^echo "\$res"$/echo "-android12-9-00003-gfb24cf99ad97"/m' \
   "$COMMON_ROOT/scripts/setlocalversion"
-grep -qF 'echo "-android12-9-00003-gfb24cf99ad97-ab14313284"' \
+grep -qF "echo \"$TARGET_SCM_SUFFIX\"" \
   "$COMMON_ROOT/scripts/setlocalversion"
 
 # KBUILD_BUILD_TIMESTAMP can be normalized by the legacy build scripts, so also
@@ -176,14 +178,22 @@ test -s "$image_lz4"
 # The image also contains the printk format literal "Linux version %s (%s)".
 # Search for the requested release directly instead of taking the first generic
 # "Linux version" string.
-version_line="$(strings "$image" | grep -F -m1 "Linux version $TARGET_RELEASE" || true)"
+version_line="$(strings "$image" | grep -F -m1 "Linux version 5.10.236-android12" || true)"
 if [[ -z "$version_line" ]]; then
-  echo "Expected kernel release was not found: $TARGET_RELEASE" >&2
+  echo "No generated Linux 5.10.236 version string was found" >&2
   echo 'Linux version candidates:' >&2
   strings "$image" | grep -F 'Linux version ' | head -n 20 >&2 || true
   exit 1
 fi
 echo "$version_line"
+
+actual_release="$(awk '{print $3}' <<< "$version_line")"
+if [[ "$actual_release" != "$TARGET_RELEASE" ]]; then
+  echo "Kernel release mismatch" >&2
+  echo "Expected: $TARGET_RELEASE" >&2
+  echo "Actual:   $actual_release" >&2
+  exit 1
+fi
 
 if ! grep -qF "$TARGET_TIMESTAMP" <<< "$version_line"; then
   echo "Expected build timestamp was not found: $TARGET_TIMESTAMP" >&2
