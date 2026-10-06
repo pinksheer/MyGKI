@@ -173,10 +173,22 @@ image_lz4="$DIST_DIR/Image.lz4"
 test -s "$image"
 test -s "$image_lz4"
 
-version_line="$(strings "$image" | grep -m1 '^Linux version ' || true)"
+# The image also contains the printk format literal "Linux version %s (%s)".
+# Search for the requested release directly instead of taking the first generic
+# "Linux version" string.
+version_line="$(strings "$image" | grep -F -m1 "Linux version $TARGET_RELEASE" || true)"
+if [[ -z "$version_line" ]]; then
+  echo "Expected kernel release was not found: $TARGET_RELEASE" >&2
+  echo 'Linux version candidates:' >&2
+  strings "$image" | grep -F 'Linux version ' | head -n 20 >&2 || true
+  exit 1
+fi
 echo "$version_line"
-grep -qF "Linux version $TARGET_RELEASE" <<< "$version_line"
-grep -qF "$TARGET_TIMESTAMP" <<< "$version_line"
+
+if ! grep -qF "$TARGET_TIMESTAMP" <<< "$version_line"; then
+  echo "Expected build timestamp was not found: $TARGET_TIMESTAMP" >&2
+  exit 1
+fi
 
 mkdir -p "$ARTIFACT_DIR"
 cp "$image" "$ARTIFACT_DIR/Image"
