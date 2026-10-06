@@ -1,0 +1,53 @@
+name: Build fixed GKI 5.10.236 BakaSU SuSFS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fixed-gki-5.10.236
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 5.10.236-android12-9-ab14313284
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/powershell
+          sudo apt-get clean
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl dwarves flex git kmod \
+            libelf-dev libssl-dev lz4 patch perl python3 rsync unzip zip
+
+      - name: Restore compiler cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: gki-5.10.236-bakasu-${{ github.sha }}
+          restore-keys: gki-5.10.236-bakasu-
+
+      - name: Build kernel
+        run: bash scripts/build.sh
+
+      - name: Upload kernel package
+        uses: actions/upload-artifact@v6
+        with:
+          name: BakaSU-SuSFS-5.10.236-android12-9-ab14313284
+          path: artifacts/
+          if-no-files-found: error
+          compression-level: 9
+          retention-days: 14

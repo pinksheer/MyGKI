@@ -1,0 +1,10 @@
+kernel-workspace/
+susfs4ksu/
+AnyKernel3/
+artifacts/
+.bin/
+.ccache/
+*.log
+*.orig
+*.rej
+.codex-tmp-*/
